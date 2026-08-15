@@ -1,7 +1,7 @@
 name: mh_solar_daily_rates
 description: MH Solar & Electronics - Daily Solar Panel Rates app.
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -15,6 +15,7 @@ dependencies:
   share_plus: ^10.0.2
   firebase_core: ^3.15.2
   cloud_firestore: ^5.6.12
+  firebase_auth: ^5.5.3
 
 dev_dependencies:
   flutter_test:
