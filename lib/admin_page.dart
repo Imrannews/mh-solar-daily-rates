@@ -38,12 +38,8 @@ class _AdminPageState extends State<AdminPage> {
       _error = null;
     });
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: _email.text.trim(),
-        password: _password.text,
-      );
-      final uid = credential.user!.uid;
-      final adminDoc = await _db.collection('admins').doc(uid).get();
+      final credential = await _auth.signInWithEmailAndPassword(email: _email.text.trim(), password: _password.text);
+      final adminDoc = await _db.collection('admins').doc(credential.user!.uid).get();
       if (!adminDoc.exists) {
         await _auth.signOut();
         throw Exception('This account is not registered as an MH Solar admin.');
@@ -137,16 +133,14 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Widget _field(TextEditingController controller, String label, IconData icon, {bool number = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: number ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(prefixIcon: Icon(icon), labelText: label, border: const OutlineInputBorder()),
-      ),
-    );
-  }
+  Widget _field(TextEditingController controller, String label, IconData icon, {bool number = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextField(
+          controller: controller,
+          keyboardType: number ? TextInputType.number : TextInputType.text,
+          decoration: InputDecoration(prefixIcon: Icon(icon), labelText: label, border: const OutlineInputBorder()),
+        ),
+      );
 
   Future<void> _deleteRate(DocumentSnapshot<Map<String, dynamic>> doc) async {
     final name = '${doc.data()?['brand'] ?? ''} ${doc.data()?['model'] ?? ''}'.trim();
@@ -171,21 +165,21 @@ class _AdminPageState extends State<AdminPage> {
   Widget build(BuildContext context) {
     if (_user == null) return _loginView();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('MH Solar Admin'),
-        actions: [IconButton(onPressed: _logout, icon: const Icon(Icons.logout))],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _saveRate(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Rate'),
-      ),
+      appBar: AppBar(title: const Text('MH Solar Admin'), actions: [IconButton(onPressed: _logout, icon: const Icon(Icons.logout))]),
+      floatingActionButton: FloatingActionButton.extended(onPressed: () => _saveRate(), icon: const Icon(Icons.add), label: const Text('Add Rate')),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _db.collection('solar_rates').orderBy('updatedAt', descending: true).snapshots(),
+        stream: _db.collection('solar_rates').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) return Center(child: Text('Unable to load rates: ${snapshot.error}'));
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final docs = snapshot.data!.docs;
+          final docs = [...snapshot.data!.docs];
+          docs.sort((a, b) {
+            final at = a.data()['updatedAt'];
+            final bt = b.data()['updatedAt'];
+            final aTime = at is Timestamp ? at.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = bt is Timestamp ? bt.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          });
           if (docs.isEmpty) return const Center(child: Text('No rates yet. Tap Add Rate.'));
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
@@ -195,15 +189,16 @@ class _AdminPageState extends State<AdminPage> {
               final d = doc.data();
               final price = d['price'];
               final updated = d['updatedAt'];
-              final updatedText = updated is Timestamp ? DateFormat('dd MMM, hh:mm a').format(updated.toDate()) : 'Just updated';
+              final updatedText = updated is Timestamp ? DateFormat('dd MMM, hh:mm a').format(updated.toDate()) : 'Existing rate';
+              final wattText = d['watt']?.toString() ?? '';
               return Card(
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.solar_power)),
-                  title: Text('${d['brand'] ?? ''} ${d['watt'] ?? ''}W'),
+                  title: Text('${d['brand'] ?? ''} ${wattText}W'),
                   subtitle: Text('${d['model'] ?? ''} • ${d['category'] ?? ''}\n$updatedText'),
                   isThreeLine: true,
                   trailing: SizedBox(
-                    width: 110,
+                    width: 120,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -230,33 +225,31 @@ class _AdminPageState extends State<AdminPage> {
     );
   }
 
-  Widget _loginView() {
-    return Scaffold(
-      appBar: AppBar(title: const Text('MH Solar Admin Login')),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 430),
-            child: Column(
-              children: [
-                const Icon(Icons.admin_panel_settings, size: 72, color: Colors.green),
-                const SizedBox(height: 14),
-                const Text('Admin Login', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text('Only authorized MH Solar administrators can change rates.', textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Admin email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
-                const SizedBox(height: 12),
-                TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock))),
-                const SizedBox(height: 16),
-                if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error), textAlign: TextAlign.center)),
-                SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _busy ? null : _login, icon: const Icon(Icons.login), label: Text(_busy ? 'Signing in...' : 'Sign in'))),
-              ],
+  Widget _loginView() => Scaffold(
+        appBar: AppBar(title: const Text('MH Solar Admin Login')),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Column(
+                children: [
+                  const Icon(Icons.admin_panel_settings, size: 72, color: Colors.green),
+                  const SizedBox(height: 14),
+                  const Text('Admin Login', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('Only authorized MH Solar administrators can change rates.', textAlign: TextAlign.center),
+                  const SizedBox(height: 24),
+                  TextField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Admin email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
+                  const SizedBox(height: 12),
+                  TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock))),
+                  const SizedBox(height: 16),
+                  if (_error != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error), textAlign: TextAlign.center)),
+                  SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _busy ? null : _login, icon: const Icon(Icons.login), label: Text(_busy ? 'Signing in...' : 'Sign in'))),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
