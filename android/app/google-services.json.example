@@ -1,0 +1,3 @@
+{
+  "note": "Firebase config template only. Do not commit your real google-services.json to a public repository. Download the real file from Firebase Console and place it locally at android/app/google-services.json."
+}
