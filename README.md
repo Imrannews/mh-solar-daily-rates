@@ -1,46 +1,31 @@
-# MH Solar Daily Rates ☀️
+# MH Solar Daily Rates
 
-Flutter Android app for **MH Solar & Electronics** to publish live daily solar market rates.
+Flutter Android app for MH Solar & Electronics, Sialkot.
 
-## Firebase
+## Current features
+- Live solar rates from Firebase Firestore (`solar_rates`)
+- Search by brand, model, watt and category
+- Category filters
+- Share daily rates
+- WhatsApp contact
+- Secure Firebase email/password admin login
+- Admin add, edit and delete rates
+- Automatic Android APK build with GitHub Actions
 
-The app is connected to Firebase project `mh-solar-daily-rates` and reads live data from Cloud Firestore.
+## Firestore
+`solar_rates` fields:
+- `brand` — string
+- `model` — string
+- `watt` — number
+- `price` — number
+- `category` — string
+- `updatedAt` — timestamp (added by the admin panel)
 
-### Firestore collection
+Admin collection:
+- Collection: `admins`
+- Document ID: Firebase Authentication user UID
+- Field: `role` = `admin`
 
-Collection: `solar_rates`
+After changing `firestore.rules` in GitHub, publish the same rules in Firebase Console → Firestore Database → Rules.
 
-Each document should contain:
-
-- `brand` — string, e.g. `Jinko Solar`
-- `model` — string, e.g. `585W N-Type`
-- `watt` — number, e.g. `585`
-- `price` — number, e.g. `24500`
-- `category` — string, e.g. `Solar Panel`
-
-The app listens to `solar_rates` with a live Firestore stream, so changing a rate in Firebase updates the app automatically without publishing a new APK.
-
-## Development
-
-```bash
-flutter pub get
-flutter run
-```
-
-Package: `pk.mhsolar.dailyrates`
-
-## Current implementation
-
-- Firebase Core initialization
-- Cloud Firestore integration
-- Hard-coded demo rates removed
-- Live `solar_rates` listener
-- Loading, empty and Firestore error states
-- Pull-to-refresh
-- Share current Firebase rates
-- WhatsApp contact button
-- Android/Play Store development target
-
-## Security
-
-Do not commit private service-account credentials to GitHub. The Android Firebase client configuration is intended for client-side use; Firestore Security Rules must still be configured before production release.
+Never commit passwords, service-account keys, or other private credentials.
