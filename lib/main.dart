@@ -2,12 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'admin_page.dart';
 
-const mhGreen = Color(0xFF0A8F45);
-const mhDark = Color(0xFF063B23);
-const mhGold = Color(0xFFFFC107);
+const green = Color(0xFF078A43);
+const darkGreen = Color(0xFF06452A);
+const gold = Color(0xFFFFC107);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,90 +25,230 @@ Future<void> main() async {
 class MHSolarApp extends StatelessWidget {
   const MHSolarApp({super.key});
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'MH Solar & Electronics',
-        theme: ThemeData(useMaterial3: true, colorSchemeSeed: mhGreen, scaffoldBackgroundColor: const Color(0xFFF5F8F6)),
-        home: const AppShell(),
-      );
-}
-
-class SolarRate {
-  final String id, brand, model, watt, category;
-  final int price;
-  const SolarRate({required this.id, required this.brand, required this.model, required this.watt, required this.price, required this.category});
-  factory SolarRate.fromDocument(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    final w = d['watt'];
-    final p = d['price'];
-    return SolarRate(id: doc.id, brand: d['brand']?.toString() ?? 'Unknown', model: d['model']?.toString() ?? '', watt: w is num ? '${w.toInt()}W' : '${w ?? ''}', price: p is num ? p.toInt() : int.tryParse('${p ?? ''}'.replaceAll(',', '')) ?? 0, category: d['category']?.toString() ?? 'Solar Panel');
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'MH Solar & Electronics',
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: green),
+      home: const MainScreen(),
+    );
   }
 }
 
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
-  @override State<AppShell> createState() => _AppShellState();
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+  @override
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _AppShellState extends State<AppShell> {
-  int index = 0;
-  final titles = ['Home', 'Solar Panels', 'Inverters', 'Batteries', 'Accessories', 'Special Offers', 'Daily Rates', 'Contact Us'];
-  final icons = [Icons.home, Icons.solar_power, Icons.electric_bolt, Icons.battery_full, Icons.settings_input_component, Icons.local_offer, Icons.price_change, Icons.phone];
+class _MainScreenState extends State<MainScreen> {
+  int page = 0;
+
+  final pages = const [
+    HomePage(),
+    RatesPage(),
+    ProductsPage(),
+    AdminPage(),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      HomePage(onPage: (i) => setState(() => index = i)),
-      const CategoryPage(title: 'Solar Panels', category: 'Solar Panel', icon: Icons.solar_power),
-      const CategoryPage(title: 'Inverters', category: 'Inverter', icon: Icons.electric_bolt),
-      const CategoryPage(title: 'Batteries', category: 'Battery', icon: Icons.battery_full),
-      const CategoryPage(title: 'Solar Accessories', category: 'Accessory', icon: Icons.settings_input_component),
-      const OffersPage(), const DailyRatesPage(), const ContactPage(),
-    ];
     return Scaffold(
-      appBar: AppBar(backgroundColor: mhDark, foregroundColor: Colors.white, title: Text('MH SOLAR • ${titles[index]}', style: const TextStyle(fontWeight: FontWeight.w900)), actions: [IconButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPage())), icon: const Icon(Icons.admin_panel_settings))]),
-      drawer: Drawer(child: SafeArea(child: Column(children: [
-        Container(width: double.infinity, padding: const EdgeInsets.fromLTRB(20, 26, 20, 22), decoration: const BoxDecoration(gradient: LinearGradient(colors: [mhDark, mhGreen])), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.solar_power, color: mhGold, size: 48), SizedBox(height: 8), Text('MH SOLAR & ELECTRONICS', style: TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900)), Text('Powering the Future • Sialkot', style: TextStyle(color: Colors.white70))])),
-        Expanded(child: ListView.builder(itemCount: titles.length, itemBuilder: (context, i) => ListTile(leading: Icon(icons[i], color: index == i ? mhGreen : null), title: Text(titles[i], style: TextStyle(fontWeight: index == i ? FontWeight.w800 : FontWeight.normal)), selected: index == i, onTap: () { setState(() => index = i); Navigator.pop(context); }))),
-        const Divider(), ListTile(leading: const Icon(Icons.admin_panel_settings), title: const Text('Admin Panel'), onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPage())); }),
-      ]))),
-      body: IndexedStack(index: index, children: pages),
+      appBar: AppBar(
+        backgroundColor: darkGreen,
+        foregroundColor: Colors.white,
+        title: const Text('MH SOLAR & ELECTRONICS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+      ),
+      body: pages[page],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: page,
+        onDestinationSelected: (value) => setState(() => page = value),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.price_change_outlined), selectedIcon: Icon(Icons.price_change), label: 'Daily Rates'),
+          NavigationDestination(icon: Icon(Icons.category_outlined), selectedIcon: Icon(Icons.category), label: 'Products'),
+          NavigationDestination(icon: Icon(Icons.admin_panel_settings_outlined), selectedIcon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+        ],
+      ),
     );
   }
 }
 
 class HomePage extends StatelessWidget {
-  final ValueChanged<int> onPage;
-  const HomePage({super.key, required this.onPage});
+  const HomePage({super.key});
+
   @override
-  Widget build(BuildContext context) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: FirebaseFirestore.instance.collection('solar_rates').snapshots(), builder: (context, snapshot) {
-    final rates = snapshot.data?.docs.map(SolarRate.fromDocument).where((r) => r.price > 0).toList() ?? [];
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Container(padding: const EdgeInsets.all(25), decoration: BoxDecoration(gradient: const LinearGradient(colors: [mhDark, mhGreen]), borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(blurRadius: 18, offset: Offset(0, 8), color: Color(0x33000000))]), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.wb_sunny, color: mhGold, size: 52), SizedBox(height: 8), Text('DAILY SOLAR RATES', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 1)), Text('Live market prices • Sialkot', style: TextStyle(color: Colors.white70, fontSize: 15)), SizedBox(height: 16), Text('MH SOLAR & ELECTRONICS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1.5))])),
-      const SizedBox(height: 16),
-      Row(children: [_Stat(icon: Icons.solar_power, title: 'Panels', value: '${rates.where((r) => r.category.toLowerCase().contains('panel')).length}'), _Stat(icon: Icons.electric_bolt, title: 'Inverters', value: '${rates.where((r) => r.category.toLowerCase().contains('inverter')).length}'), _Stat(icon: Icons.battery_full, title: 'Batteries', value: '${rates.where((r) => r.category.toLowerCase().contains('battery')).length}')]),
-      const SizedBox(height: 20), const Text('Explore Products', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 10),
-      GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.35, children: [_Tile(icon: Icons.solar_power, title: 'Solar Panels', onTap: () => onPage(1)), _Tile(icon: Icons.electric_bolt, title: 'Inverters', onTap: () => onPage(2)), _Tile(icon: Icons.battery_full, title: 'Batteries', onTap: () => onPage(3)), _Tile(icon: Icons.settings_input_component, title: 'Accessories', onTap: () => onPage(4)), _Tile(icon: Icons.local_offer, title: 'Special Offers', onTap: () => onPage(5)), _Tile(icon: Icons.price_change, title: 'Daily Rates', onTap: () => onPage(6))]),
-      const SizedBox(height: 20), const _AddressFooter(),
-    ]);
-  });
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [darkGreen, green]),
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.wb_sunny, color: gold, size: 55),
+              SizedBox(height: 8),
+              Text('DAILY SOLAR RATES', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+              SizedBox(height: 5),
+              Text('Latest solar market rates for Sialkot', style: TextStyle(color: Colors.white70, fontSize: 15)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const Text('MH Solar & Electronics', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        const Text('Solar Panels • Inverters • Batteries • Accessories', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 20),
+        _homeCard(Icons.solar_power, 'Solar Panels', 'Check latest panel prices'),
+        _homeCard(Icons.electric_bolt, 'Inverters', 'Fronus, Solis and more'),
+        _homeCard(Icons.battery_full, 'Batteries', 'Latest battery rates'),
+        _homeCard(Icons.local_offer, 'Special Offers', 'Check current deals'),
+        const SizedBox(height: 15),
+        const AddressBox(),
+      ],
+    );
+  }
+
+  Widget _homeCard(IconData icon, String title, String subtitle) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(backgroundColor: const Color(0xFFE7F5EC), child: Icon(icon, color: green)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      ),
+    );
+  }
 }
 
-class _Stat extends StatelessWidget { final IconData icon; final String title, value; const _Stat({required this.icon, required this.title, required this.value}); @override Widget build(BuildContext context) => Expanded(child: Card(elevation: 2, child: Padding(padding: const EdgeInsets.symmetric(vertical: 13), child: Column(children: [Icon(icon, color: mhGreen), Text(value, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)), Text(title, style: const TextStyle(color: Colors.grey))])))); }
-class _Tile extends StatelessWidget { final IconData icon; final String title; final VoidCallback onTap; const _Tile({required this.icon, required this.title, required this.onTap}); @override Widget build(BuildContext context) => Card(elevation: 2, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: Padding(padding: const EdgeInsets.all(14), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircleAvatar(radius: 26, backgroundColor: const Color(0xFFE8F5EC), child: Icon(icon, size: 30, color: mhGreen)), const SizedBox(height: 9), Text(title, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800))])))); }
+class RatesPage extends StatelessWidget {
+  const RatesPage({super.key});
 
-class CategoryPage extends StatelessWidget {
-  final String title, category; final IconData icon;
-  const CategoryPage({super.key, required this.title, required this.category, required this.icon});
-  @override Widget build(BuildContext context) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: FirebaseFirestore.instance.collection('solar_rates').where('category', isEqualTo: category).snapshots(), builder: (context, snapshot) {
-    final rates = snapshot.data?.docs.map(SolarRate.fromDocument).where((r) => r.price > 0).toList() ?? [];
-    return ListView(padding: const EdgeInsets.all(16), children: [Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.green.shade50, Colors.white]), borderRadius: BorderRadius.circular(22)), child: Row(children: [CircleAvatar(radius: 27, backgroundColor: const Color(0xFFE8F5EC), child: Icon(icon, color: mhGreen)), const SizedBox(width: 13), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), Text('${rates.length} products', style: const TextStyle(color: Colors.grey))])])), const SizedBox(height: 14), if (rates.isEmpty) const _Empty(title: 'No products yet', message: 'Add products from Admin Panel with this category.') else ...rates.map((r) => _RateCard(rate: r)), const SizedBox(height: 10), const _AddressFooter()]);
-  });
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('solar_rates').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Rates error: ${snapshot.error}'));
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs;
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text('☀️ TODAY\'S SOLAR RATES', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+            Text(DateFormat('dd MMMM yyyy').format(DateTime.now()), style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 15),
+            if (docs.isEmpty) const EmptyBox() else ...docs.map((doc) => RateCard(data: doc.data())),
+            const SizedBox(height: 12),
+            const AddressBox(),
+          ],
+        );
+      },
+    );
+  }
 }
 
-class DailyRatesPage extends StatelessWidget { const DailyRatesPage({super.key}); @override Widget build(BuildContext context) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: FirebaseFirestore.instance.collection('solar_rates').snapshots(), builder: (context, snapshot) { final rates = snapshot.data?.docs.map(SolarRate.fromDocument).where((r) => r.price > 0).toList() ?? []; return ListView(padding: const EdgeInsets.all(16), children: [const Text("☀️ Today's Complete Rates", style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), Text(DateFormat('dd MMMM yyyy').format(DateTime.now()), style: const TextStyle(color: Colors.grey)), const SizedBox(height: 14), ...rates.map((r) => _RateCard(rate: r)), const SizedBox(height: 10), const _AddressFooter()]); }); }
-class OffersPage extends StatelessWidget { const OffersPage({super.key}); @override Widget build(BuildContext context) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: FirebaseFirestore.instance.collection('solar_rates').where('isOffer', isEqualTo: true).snapshots(), builder: (context, snapshot) { final rates = snapshot.data?.docs.map(SolarRate.fromDocument).toList() ?? []; return ListView(padding: const EdgeInsets.all(16), children: [Container(padding: const EdgeInsets.all(22), decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.orange.shade800, Colors.red.shade600]), borderRadius: BorderRadius.circular(24)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.local_offer, color: Colors.white, size: 44), SizedBox(height: 8), Text('SPECIAL OFFERS', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)), Text('Latest MH Solar deals', style: TextStyle(color: Colors.white70))])), const SizedBox(height: 14), if (rates.isEmpty) const _Empty(title: 'No active offers', message: 'Add offers from Admin Panel.') else ...rates.map((r) => _RateCard(rate: r)), const SizedBox(height: 10), const _AddressFooter()]); }); }
+class ProductsPage extends StatelessWidget {
+  const ProductsPage({super.key});
 
-class ContactPage extends StatelessWidget { const ContactPage({super.key}); Future<void> whatsapp() async { final uri = Uri.parse('https://wa.me/923366760264'); if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication); } @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(gradient: const LinearGradient(colors: [mhDark, mhGreen]), borderRadius: BorderRadius.circular(25)), child: const Column(children: [Icon(Icons.solar_power, color: mhGold, size: 58), SizedBox(height: 8), Text('MH SOLAR & ELECTRONICS', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w900)), Text('Complete Solar Solutions', style: TextStyle(color: Colors.white70))])), const SizedBox(height: 15), const _AddressFooter(), const SizedBox(height: 15), FilledButton.icon(onPressed: whatsapp, icon: const Icon(Icons.chat), label: const Text('WhatsApp 0336-6760264'))]); }
-class _AddressFooter extends StatelessWidget { const _AddressFooter(); @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: const LinearGradient(colors: [mhDark, mhGreen]), borderRadius: BorderRadius.circular(20)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('MH SOLAR & ELECTRONICS', style: TextStyle(color: mhGold, fontSize: 17, fontWeight: FontWeight.w900)), SizedBox(height: 10), Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.location_on, color: Colors.white), SizedBox(width: 8), Expanded(child: Text('Near Emnabad Sweets, Pulli Kammanwala, Chaprar Road, Sialkot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.35)))]), SizedBox(height: 9), Row(children: [Icon(Icons.phone, color: Colors.white), SizedBox(width: 8), Text('0336-6760264', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900))]), SizedBox(height: 12), Center(child: Text('Powering the Future', style: TextStyle(color: Colors.white70, fontStyle: FontStyle.italic))) ]); }
-class _RateCard extends StatelessWidget { final SolarRate rate; const _RateCard({required this.rate}); @override Widget build(BuildContext context) => Card(elevation: 2, margin: const EdgeInsets.only(bottom: 10), child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5), leading: CircleAvatar(backgroundColor: const Color(0xFFE8F5EC), child: Icon(rate.category.toLowerCase().contains('battery') ? Icons.battery_full : rate.category.toLowerCase().contains('inverter') ? Icons.electric_bolt : Icons.solar_power, color: mhGreen)), title: Text(rate.brand, style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text('${rate.model} • ${rate.watt}\n${rate.category}'), isThreeLine: true, trailing: Text('Rs. ${NumberFormat('#,###').format(rate.price)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: mhGreen))); }
-class _Empty extends StatelessWidget { final String title, message; const _Empty({required this.title, required this.message}); @override Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(28), child: Column(children: [const Icon(Icons.inventory_2_outlined, size: 52, color: Colors.grey), const SizedBox(height: 10), Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)), const SizedBox(height: 6), Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey))]))); }
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 4,
+      child: Column(
+        children: [
+          const TabBar(
+            isScrollable: true,
+            tabs: [
+              Tab(text: 'Panels', icon: Icon(Icons.solar_power)),
+              Tab(text: 'Inverters', icon: Icon(Icons.electric_bolt)),
+              Tab(text: 'Batteries', icon: Icon(Icons.battery_full)),
+              Tab(text: 'Accessories', icon: Icon(Icons.settings)),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: const [
+                CategoryList(category: 'Solar Panel'),
+                CategoryList(category: 'Inverter'),
+                CategoryList(category: 'Battery'),
+                CategoryList(category: 'Accessory'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class CategoryList extends StatelessWidget {
+  final String category;
+  const CategoryList({super.key, required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('solar_rates').where('category', isEqualTo: category).snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) return Center(child: Text('No $category products yet.'));
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: docs.map((doc) => RateCard(data: doc.data())).toList(),
+        );
+      },
+    );
+  }
+}
+
+class RateCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const RateCard({super.key, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final price = data['price'];
+    final priceText = NumberFormat('#,###').format(price is num ? price : int.tryParse('$price') ?? 0);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: const CircleAvatar(backgroundColor: Color(0xFFE7F5EC), child: Icon(Icons.solar_power, color: green)),
+        title: Text('${data['brand'] ?? 'Product'} ${data['model'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w900)),
+        subtitle: Text('${data['category'] ?? ''} • ${data['watt'] ?? ''}'),
+        trailing: Text('Rs. $priceText', style: const TextStyle(color: green, fontWeight: FontWeight.w900)),
+      ),
+    );
+  }
+}
+
+class AddressBox extends StatelessWidget {
+  const AddressBox({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(gradient: const LinearGradient(colors: [darkGreen, green]), borderRadius: BorderRadius.circular(20)),
+      child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('MH SOLAR & ELECTRONICS', style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900)),
+        SizedBox(height: 10),
+        Text('Near Emnabad Sweets, Pulli Kammanwala, Chaprar Road, Sialkot', style: TextStyle(color: Colors.white, height: 1.4)),
+        SizedBox(height: 8),
+        Text('📞 0336-6760264', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+}
+
+class EmptyBox extends StatelessWidget {
+  const EmptyBox({super.key});
+  @override
+  Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(40), child: Text('No rates available. Add rates from Admin.', textAlign: TextAlign.center)));
+}
