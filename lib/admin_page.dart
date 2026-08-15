@@ -3,21 +3,129 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-class AdminPage extends StatefulWidget { const AdminPage({super.key}); @override State<AdminPage> createState()=>_AdminPageState(); }
+class AdminPage extends StatefulWidget {
+  const AdminPage({super.key});
+  @override State<AdminPage> createState() => _AdminPageState();
+}
+
 class _AdminPageState extends State<AdminPage> {
-  final _auth=FirebaseAuth.instance,_db=FirebaseFirestore.instance; final _email=TextEditingController(),_password=TextEditingController(); bool _busy=false; String? _error; User? _user;
-  @override void initState(){super.initState();_user=_auth.currentUser;}
-  @override void dispose(){_email.dispose();_password.dispose();super.dispose();}
-  Future<void> _login()async{setState((){_busy=true;_error=null;});try{final cr=await _auth.signInWithEmailAndPassword(email:_email.text.trim(),password:_password.text);final d=await _db.collection('admins').doc(cr.user!.uid).get();if(!d.exists||d.data()?['role']!='admin'){await _auth.signOut();throw Exception('This account is not registered as an MH Solar admin.');}setState(()=>_user=cr.user);}on FirebaseAuthException catch(e){setState(()=>_error=e.message??'Login failed.');}catch(e){setState(()=>_error=e.toString().replaceFirst('Exception: ',''));}finally{if(mounted)setState(()=>_busy=false);}}
-  Future<void> _logout()async{await _auth.signOut();if(mounted)setState(()=>_user=null);}
-  Future<void> _saveRate({DocumentSnapshot<Map<String,dynamic>>? doc})async{
-    final brand=TextEditingController(),model=TextEditingController(),watt=TextEditingController(),price=TextEditingController(); String category='Solar Panel'; bool isOffer=false;
-    if(doc!=null){final d=doc.data()??{};brand.text=d['brand']?.toString()??'';model.text=d['model']?.toString()??'';watt.text=d['watt']?.toString()??'';price.text=d['price']?.toString()??'';category=d['category']?.toString()??'Solar Panel';isOffer=d['isOffer']==true;}
-    final saved=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setDialog)=>AlertDialog(title:Text(doc==null?'Add Product':'Edit Product'),content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[_field(brand,'Brand',Icons.business),_field(model,'Model / Capacity',Icons.solar_power),_field(watt,'Watt / Size',Icons.bolt,number:true),_field(price,'Price (Rs.)',Icons.payments,number:true),DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Category',border:OutlineInputBorder(),prefixIcon:Icon(Icons.category)),items:const['Solar Panel','Inverter','Battery','Accessory'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v)=>setDialog(()=>category=v??'Solar Panel')),SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Special Offer'),subtitle:const Text('Show this product on Offers page'),value:isOffer,onChanged:(v)=>setDialog(()=>isOffer=v))])),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()async{final w=int.tryParse(watt.text.trim());final p=int.tryParse(price.text.trim().replaceAll(',',''));if(brand.text.trim().isEmpty||model.text.trim().isEmpty||w==null||p==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enter valid brand, model, watt/size and price.')));return;}final data={'brand':brand.text.trim(),'model':model.text.trim(),'watt':w,'price':p,'category':category,'isOffer':isOffer,'updatedAt':FieldValue.serverTimestamp()};if(doc==null){await _db.collection('solar_rates').add(data);}else{await doc.reference.update(data);}if(ctx.mounted)Navigator.pop(ctx,true);},child:const Text('Save'))]));
-    brand.dispose();model.dispose();watt.dispose();price.dispose();if(saved==true&&mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Product saved successfully.')));
+  final auth = FirebaseAuth.instance;
+  final db = FirebaseFirestore.instance;
+  final email = TextEditingController();
+  final password = TextEditingController();
+  bool busy = false;
+  String? error;
+  User? user;
+
+  @override void initState() { super.initState(); user = auth.currentUser; }
+  @override void dispose() { email.dispose(); password.dispose(); super.dispose(); }
+
+  Future<void> login() async {
+    setState(() { busy = true; error = null; });
+    try {
+      final credential = await auth.signInWithEmailAndPassword(email: email.text.trim(), password: password.text);
+      final admin = await db.collection('admins').doc(credential.user!.uid).get();
+      if (!admin.exists || admin.data()?['role'] != 'admin') {
+        await auth.signOut();
+        throw Exception('This account is not registered as an MH Solar admin.');
+      }
+      if (mounted) setState(() => user = credential.user);
+    } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() => error = e.message ?? 'Login failed.');
+    } catch (e) {
+      if (mounted) setState(() => error = e.toString().replaceFirst('Exception: ', ''));
+    } finally { if (mounted) setState(() => busy = false); }
   }
-  Widget _field(TextEditingController c,String label,IconData icon,{bool number=false})=>Padding(padding:const EdgeInsets.only(bottom:12),child:TextField(controller:c,keyboardType:number?TextInputType.number:TextInputType.text,decoration:InputDecoration(prefixIcon:Icon(icon),labelText:label,border:const OutlineInputBorder())));
-  Future<void> _deleteRate(DocumentSnapshot<Map<String,dynamic>> doc)async{final name='${doc.data()?['brand']??''} ${doc.data()?['model']??''}'.trim();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Delete product?'),content:Text('Delete $name?'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Delete'))]));if(ok==true){await doc.reference.delete();if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Product deleted.')));}}
-  @override Widget build(BuildContext context){if(_user==null)return _loginView();return Scaffold(appBar:AppBar(title:const Text('MH Solar Admin'),actions:[IconButton(onPressed:_logout,icon:const Icon(Icons.logout))]),floatingActionButton:FloatingActionButton.extended(onPressed:()=>_saveRate(),icon:const Icon(Icons.add),label:const Text('Add Product')),body:StreamBuilder<QuerySnapshot<Map<String,dynamic>>>(stream:_db.collection('solar_rates').snapshots(),builder:(c,s){if(s.hasError)return Center(child:Text('Unable to load products: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final docs=[...s.data!.docs];docs.sort((a,b){final at=a.data()['updatedAt'],bt=b.data()['updatedAt'];final ad=at is Timestamp?at.toDate():DateTime(1970),bd=bt is Timestamp?bt.toDate():DateTime(1970);return bd.compareTo(ad);});if(docs.isEmpty)return const Center(child:Text('No products yet. Tap Add Product.'));return ListView.builder(padding:const EdgeInsets.fromLTRB(12,12,12,100),itemCount:docs.length,itemBuilder:(c,i){final d=docs[i].data(),doc=docs[i],p=d['price'];return Card(child:ListTile(leading:CircleAvatar(child:Icon(d['category']=='Battery'?Icons.battery_full:d['category']=='Inverter'?Icons.electric_bolt:Icons.solar_power)),title:Text('${d['brand']??''} • ${d['model']??''}',style:const TextStyle(fontWeight:FontWeight.bold)),subtitle:Text('${d['category']??''} • ${d['watt']??''}\n${d['isOffer']==true?'🔥 SPECIAL OFFER • ':''}${d['updatedAt'] is Timestamp?DateFormat('dd MMM, hh:mm a').format((d['updatedAt'] as Timestamp).toDate()):'Existing rate'}'),isThreeLine:true,trailing:SizedBox(width:125,child:Row(children:[Expanded(child:Text('Rs. ${NumberFormat('#,###').format(p is num?p:int.tryParse('$p')??0)}',textAlign:TextAlign.end,style:const TextStyle(fontWeight:FontWeight.bold))),PopupMenuButton<String>(onSelected:(v){if(v=='edit')_saveRate(doc:doc);if(v=='delete')_deleteRate(doc);},itemBuilder:(_)=>const[PopupMenuItem(value:'edit',child:Text('Edit')),PopupMenuItem(value:'delete',child:Text('Delete'))])]));});}));}
-  Widget _loginView()=>Scaffold(appBar:AppBar(title:const Text('MH Solar Admin Login')),body:Center(child:SingleChildScrollView(padding:const EdgeInsets.all(24),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:430),child:Column(children:[const Icon(Icons.admin_panel_settings,size:72,color:Colors.green),const SizedBox(height:14),const Text('Admin Login',style:TextStyle(fontSize:28,fontWeight:FontWeight.bold)),const SizedBox(height:8),const Text('Manage panels, inverters, batteries, accessories and offers.',textAlign:TextAlign.center),const SizedBox(height:24),TextField(controller:_email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Admin email',border:OutlineInputBorder(),prefixIcon:Icon(Icons.email))),const SizedBox(height:12),TextField(controller:_password,obscureText:true,decoration:const InputDecoration(labelText:'Password',border:OutlineInputBorder(),prefixIcon:Icon(Icons.lock))),const SizedBox(height:16),if(_error!=null)Padding(padding:const EdgeInsets.only(bottom:12),child:Text(_error!,style:TextStyle(color:Theme.of(context).colorScheme.error),textAlign:TextAlign.center)),SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:_busy?null:_login,icon:const Icon(Icons.login),label:Text(_busy?'Signing in...':'Sign in')))]))));
+
+  Future<void> logout() async { await auth.signOut(); if (mounted) setState(() => user = null); }
+
+  Future<void> saveRate({DocumentSnapshot<Map<String, dynamic>>? doc}) async {
+    final brand = TextEditingController();
+    final model = TextEditingController();
+    final watt = TextEditingController();
+    final price = TextEditingController();
+    String category = 'Solar Panel';
+    bool offer = false;
+    if (doc != null) {
+      final d = doc.data() ?? {};
+      brand.text = '${d['brand'] ?? ''}'; model.text = '${d['model'] ?? ''}';
+      watt.text = '${d['watt'] ?? ''}'; price.text = '${d['price'] ?? ''}';
+      category = '${d['category'] ?? 'Solar Panel'}'; offer = d['isOffer'] == true;
+    }
+    final saved = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDialog) => AlertDialog(
+        title: Text(doc == null ? 'Add Product' : 'Edit Product'),
+        content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          field(brand, 'Brand', Icons.business), field(model, 'Model / Capacity', Icons.solar_power),
+          field(watt, 'Watt / Size', Icons.bolt, number: true), field(price, 'Price (Rs.)', Icons.payments, number: true),
+          DropdownButtonFormField<String>(
+            initialValue: category,
+            decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
+            items: const ['Solar Panel','Inverter','Battery','Accessory'].map((x) => DropdownMenuItem(value: x, child: Text(x))).toList(),
+            onChanged: (v) => setDialog(() => category = v ?? 'Solar Panel'),
+          ),
+          SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Special Offer'), value: offer, onChanged: (v) => setDialog(() => offer = v)),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () async {
+            final w = int.tryParse(watt.text.trim());
+            final p = int.tryParse(price.text.trim().replaceAll(',', ''));
+            if (brand.text.trim().isEmpty || model.text.trim().isEmpty || w == null || p == null) return;
+            final data = {'brand': brand.text.trim(), 'model': model.text.trim(), 'watt': w, 'price': p, 'category': category, 'isOffer': offer, 'updatedAt': FieldValue.serverTimestamp()};
+            if (doc == null) { await db.collection('solar_rates').add(data); } else { await doc.reference.update(data); }
+            if (ctx.mounted) Navigator.pop(ctx, true);
+          }, child: const Text('Save')),
+        ],
+      ),
+    ));
+    brand.dispose(); model.dispose(); watt.dispose(); price.dispose();
+    if (saved == true && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product saved successfully.')));
+  }
+
+  Widget field(TextEditingController c, String label, IconData icon, {bool number = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 12), child: TextField(controller: c, keyboardType: number ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(prefixIcon: Icon(icon), labelText: label, border: const OutlineInputBorder())),
+  );
+
+  Future<void> deleteRate(DocumentSnapshot<Map<String, dynamic>> doc) async {
+    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      title: const Text('Delete product?'), content: Text('Delete ${doc.data()?['brand'] ?? ''} ${doc.data()?['model'] ?? ''}?'),
+      actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Delete'))],
+    ));
+    if (ok == true) { await doc.reference.delete(); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Product deleted.'))); }
+  }
+
+  @override Widget build(BuildContext context) => user == null ? loginView() : Scaffold(
+    appBar: AppBar(title: const Text('MH Solar Admin'), actions: [IconButton(onPressed: logout, icon: const Icon(Icons.logout))]),
+    floatingActionButton: FloatingActionButton.extended(onPressed: () => saveRate(), icon: const Icon(Icons.add), label: const Text('Add Product')),
+    body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(stream: db.collection('solar_rates').snapshots(), builder: (c, s) {
+      if (s.hasError) return Center(child: Text('Unable to load products: ${s.error}'));
+      if (!s.hasData) return const Center(child: CircularProgressIndicator());
+      final docs = [...s.data!.docs];
+      docs.sort((a, b) { final at = a.data()['updatedAt']; final bt = b.data()['updatedAt']; final ad = at is Timestamp ? at.toDate() : DateTime(1970); final bd = bt is Timestamp ? bt.toDate() : DateTime(1970); return bd.compareTo(ad); });
+      if (docs.isEmpty) return const Center(child: Text('No products yet. Tap Add Product.'));
+      return ListView.builder(padding: const EdgeInsets.fromLTRB(12, 12, 12, 100), itemCount: docs.length, itemBuilder: (c, i) {
+        final doc = docs[i]; final d = doc.data(); final p = d['price'];
+        return Card(child: ListTile(
+          leading: CircleAvatar(child: Icon(d['category'] == 'Battery' ? Icons.battery_full : d['category'] == 'Inverter' ? Icons.electric_bolt : Icons.solar_power)),
+          title: Text('${d['brand'] ?? ''} • ${d['model'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('${d['category'] ?? ''} • ${d['watt'] ?? ''}\n${d['isOffer'] == true ? '🔥 SPECIAL OFFER • ' : ''}${d['updatedAt'] is Timestamp ? DateFormat('dd MMM, hh:mm a').format((d['updatedAt'] as Timestamp).toDate()) : 'Existing rate'}'),
+          isThreeLine: true,
+          trailing: SizedBox(width: 125, child: Row(children: [Expanded(child: Text('Rs. ${NumberFormat('#,###').format(p is num ? p : int.tryParse('$p') ?? 0)}', textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.bold))), PopupMenuButton<String>(onSelected: (v) { if (v == 'edit') saveRate(doc: doc); if (v == 'delete') deleteRate(doc); }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('Edit')), PopupMenuItem(value: 'delete', child: Text('Delete'))])])),
+        ));
+      });
+    }),
+  );
+
+  Widget loginView() => Scaffold(appBar: AppBar(title: const Text('MH Solar Admin Login')), body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 430), child: Column(children: [
+      const Icon(Icons.admin_panel_settings, size: 72, color: Colors.green), const SizedBox(height: 14), const Text('Admin Login', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 8), const Text('Manage panels, inverters, batteries, accessories and offers.', textAlign: TextAlign.center), const SizedBox(height: 24),
+      TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Admin email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
+      const SizedBox(height: 12), TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock))),
+      const SizedBox(height: 16), if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error), textAlign: TextAlign.center), const SizedBox(height: 12),
+      SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : login, icon: const Icon(Icons.login), label: Text(busy ? 'Signing in...' : 'Sign in'))),
+    ]),
+  )));
 }
