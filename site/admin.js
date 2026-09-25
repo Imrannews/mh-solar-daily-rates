@@ -2,7 +2,7 @@ import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.5/firebase
 import {getAuth,signInWithEmailAndPassword,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {getFirestore,collection,addDoc,updateDoc,deleteDoc,doc,onSnapshot,serverTimestamp,writeBatch} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import {seedRates} from "./seed-data.js";
-const config={apiKey:"AIzaSyD10lAtuJ4dtlvMEq1IWnhqWTdwTw2on2N",authDomain:"mh-solar-daily-rates.firebaseapp.com",projectId:"mh-solar-daily-rates",storageBucket:"mh-solar-daily-rates.firebasestorage.app",messagingSenderId:"488848209199",appId:"1:488848209199:android:da96ee3b48c10e49111dda"};
+const config={apiKey:"AIzaSyD10lAtuJ4dtlvMEq1IWnhqWTdwTw2ONs",authDomain:"mh-solar-daily-rates.firebaseapp.com",projectId:"mh-solar-daily-rates",storageBucket:"mh-solar-daily-rates.firebasestorage.app",messagingSenderId:"488848209199",appId:"1:488848209199:android:da96ee3b48c10e49111dda"};
 // apiKey is read-only client configuration; authorization is enforced by Firebase Auth + Firestore rules.
 const app=initializeApp(config),auth=getAuth(app),db=getFirestore(app);let rows=[],editing=null;
 const $=s=>document.querySelector(s),fmt=n=>new Intl.NumberFormat("en-PK").format(Number(n)||0);
